@@ -3,6 +3,8 @@ import json
 import os
 import logging
 import uuid
+#2024/02/26 add tiktoken_import(token calc)
+import tiktoken
 from dotenv import load_dotenv
 
 from quart import (
@@ -14,6 +16,10 @@ from quart import (
     send_from_directory,
     render_template
 )
+
+#2024/02/26 add Basic認証用のモジュール
+#from quart_auth import login_required, AuthUser, QuartAuth
+#from functools import wraps
 
 from openai import AsyncAzureOpenAI
 from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
@@ -31,14 +37,40 @@ UI_CHAT_LOGO = os.environ.get("UI_CHAT_LOGO")
 UI_CHAT_TITLE = os.environ.get("UI_CHAT_TITLE") or "Start chatting"
 UI_CHAT_DESCRIPTION = os.environ.get("UI_CHAT_DESCRIPTION") or "This chatbot is configured to answer your questions"
 UI_FAVICON = os.environ.get("UI_FAVICON") or "/favicon.ico"
-UI_SHOW_SHARE_BUTTON = os.environ.get("UI_SHOW_SHARE_BUTTON", "true").lower() == "true"
+UI_SHOW_SHARE_BUTTON = os.environ.get("UI_SHOW_SHARE_BUTTON", "false").lower() == "true"
+#20240226 add_start show ChatVersionButton
+UI_SHOW_CHATVERSION_BUTTON = os.environ.get("UI_SHOW_CHATVERSION_BUTTON", "false").lower() == "true"
+
+#2024/02/26 add_start Basic Authentication
+BASIC_AUTH_FLAG = os.environ.get("BASIC_AUTH_FLAG", "true").lower() == "true"
+BASIC_AUTH_ID = os.environ.get("BASIC_AUTH_ID")
+BASIC_AUTH_PASS = os.environ.get("BASIC_AUTH_PASS")
 
 def create_app():
     app = Quart(__name__)
     app.register_blueprint(bp)
     app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+    #2024/02/26 add_start Basic認証追加
+    #app.config["QUART_AUTH_BASIC_USERNAME"] = BASIC_AUTH_ID
+    #app.config["QUART_AUTH_BASIC_PASSWORD"] = BASIC_AUTH_PASS
+    #app.secret_key = "secret key"
+
+    #QuartAuth(app)
+    #2024/02/26 add_end
+
     return app
 
+#2024/02/26 add_start 認証が必要かどうかを判定するデコレータを定義します。
+#def conditional_basic_auth_required(func):
+#    @wraps(func)
+#    async def decorator(*args, **kwargs):
+#        print(BASIC_AUTH_FLAG)
+#        if BASIC_AUTH_FLAG:
+#            return await login_required(func)(*args, **kwargs)
+#        return await func(*args, **kwargs)
+#    return decorator
+#2024/02/26 add_end
 
 @bp.route("/")
 async def index():
@@ -100,6 +132,14 @@ AZURE_OPENAI_MODEL_NAME = os.environ.get("AZURE_OPENAI_MODEL_NAME", "gpt-35-turb
 AZURE_OPENAI_EMBEDDING_ENDPOINT = os.environ.get("AZURE_OPENAI_EMBEDDING_ENDPOINT")
 AZURE_OPENAI_EMBEDDING_KEY = os.environ.get("AZURE_OPENAI_EMBEDDING_KEY")
 AZURE_OPENAI_EMBEDDING_NAME = os.environ.get("AZURE_OPENAI_EMBEDDING_NAME", "")
+
+#2024/02/26 add 0:select disable,1:select enable（AzureOpenAIVersion Select）
+AZURE_OPENAI_SELECT = os.environ.get("AZURE_OPENAI_SELECT", "gpt-35") # or "gpt-4"
+#2024/02/26 add Token Limit
+AZURE_OPENAI_LIMIT = os.environ.get("AZURE_OPENAI_LIMIT", 8000)
+AZURE_OPENAI_LIMIT2 = os.environ.get("AZURE_OPENAI_LIMIT2", 64000)
+AZURE_OPENAI_TOTALLIMIT = os.environ.get("AZURE_OPENAI_TOTALLIMIT", 16384)
+AZURE_OPENAI_TOTALLIMIT2 = os.environ.get("AZURE_OPENAI_TOTALLIMIT2", 128000)
 
 # CosmosDB Mongo vcore vector db Settings
 AZURE_COSMOSDB_MONGO_VCORE_CONNECTION_STRING = os.environ.get("AZURE_COSMOSDB_MONGO_VCORE_CONNECTION_STRING")  #This has to be secure string
@@ -166,7 +206,6 @@ AZURE_MLINDEX_URL_COLUMN = os.environ.get("AZURE_MLINDEX_URL_COLUMN")
 AZURE_MLINDEX_VECTOR_COLUMNS = os.environ.get("AZURE_MLINDEX_VECTOR_COLUMNS")
 AZURE_MLINDEX_QUERY_TYPE = os.environ.get("AZURE_MLINDEX_QUERY_TYPE")
 
-
 # Frontend Settings via Environment Variables
 AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "true").lower() == "true"
 CHAT_HISTORY_ENABLED = AZURE_COSMOSDB_ACCOUNT and AZURE_COSMOSDB_DATABASE and AZURE_COSMOSDB_CONVERSATIONS_CONTAINER
@@ -175,6 +214,7 @@ frontend_settings = {
     "feedback_enabled": AZURE_COSMOSDB_ENABLE_FEEDBACK and CHAT_HISTORY_ENABLED,
     "ui": {
         "title": UI_TITLE,
+        "show_chatVersion_Button": UI_SHOW_CHATVERSION_BUTTON,
         "logo": UI_LOGO,
         "chat_logo": UI_CHAT_LOGO or UI_LOGO,
         "chat_title": UI_CHAT_TITLE,
@@ -264,7 +304,6 @@ def init_openai_client(use_data=SHOULD_USE_DATA):
         azure_openai_client = None
         raise e
 
-
 def init_cosmosdb_client():
     cosmos_conversation_client = None
     if CHAT_HISTORY_ENABLED:
@@ -291,7 +330,6 @@ def init_cosmosdb_client():
         logging.debug("CosmosDB not configured")
         
     return cosmos_conversation_client
-
 
 def get_configured_data_source():
     data_source = {}
@@ -483,6 +521,185 @@ def get_configured_data_source():
 
     return data_source
 
+#2024/02/26 add_start 使用しているGPTバージョンを返す True->GPT4 False->GPT3.5
+def gptversion_select(gpt_version):
+    gpt_version_select = False
+    if UI_SHOW_CHATVERSION_BUTTON:
+        #バージョン選択ボタン有効
+        if gpt_version:
+            return True
+        else:
+            return False
+    else:
+        #バージョン選択ボタン無効
+        if AZURE_OPENAI_SELECT == "gpt-35":
+            return False
+        elif AZURE_OPENAI_SELECT == "gpt-4":
+            return True
+        else:
+            return False
+
+def init_gptversion(gpt_version):
+    if gptversion_select(gpt_version):
+        #GPT4の変数代入
+        #true
+        global AZURE_OPENAI_RESOURCE
+        global AZURE_OPENAI_MODEL
+        global AZURE_OPENAI_ENDPOINT
+        global AZURE_OPENAI_KEY
+        global AZURE_OPENAI_TEMPERATURE
+        global AZURE_OPENAI_TOP_P
+        global AZURE_OPENAI_MAX_TOKENS
+        global AZURE_OPENAI_STOP_SEQUENCE
+        global AZURE_OPENAI_SYSTEM_MESSAGE
+        global AZURE_OPENAI_PREVIEW_API_VERSION
+        global AZURE_OPENAI_STREAM
+        global AZURE_OPENAI_MODEL_NAME
+        global AZURE_OPENAI_EMBEDDING_ENDPOINT
+        global AZURE_OPENAI_EMBEDDING_KEY
+        AZURE_OPENAI_RESOURCE = os.environ.get("AZURE_OPENAI_RESOURCE2")
+        AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_MODEL2")
+        AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT2")
+        AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY2")
+        AZURE_OPENAI_TEMPERATURE = os.environ.get("AZURE_OPENAI_TEMPERATURE", 0.7)
+        AZURE_OPENAI_TOP_P = os.environ.get("AZURE_OPENAI_TOP_P", 0.95)
+        AZURE_OPENAI_MAX_TOKENS = os.environ.get("AZURE_OPENAI_MAX_TOKENS2", 4096)
+        AZURE_OPENAI_STOP_SEQUENCE = os.environ.get("AZURE_OPENAI_STOP_SEQUENCE")
+        AZURE_OPENAI_SYSTEM_MESSAGE = os.environ.get("AZURE_OPENAI_SYSTEM_MESSAGE", "You are an AI assistant that helps people find information.")
+        AZURE_OPENAI_PREVIEW_API_VERSION = os.environ.get("AZURE_OPENAI_PREVIEW_API_VERSION", "2023-12-01-preview")
+        AZURE_OPENAI_STREAM = os.environ.get("AZURE_OPENAI_STREAM", "true")
+        AZURE_OPENAI_MODEL_NAME = os.environ.get("AZURE_OPENAI_MODEL_NAME2", "gpt-4") # Name of the model, e.g. 'gpt-35-turbo-16k' or 'gpt-4'
+        AZURE_OPENAI_EMBEDDING_ENDPOINT = os.environ.get("AZURE_OPENAI_EMBEDDING_ENDPOINT")
+        AZURE_OPENAI_EMBEDDING_KEY = os.environ.get("AZURE_OPENAI_EMBEDDING_KEY")
+        pass
+    else:
+        #GPT3.5の変数代入
+        #false
+        AZURE_OPENAI_RESOURCE = os.environ.get("AZURE_OPENAI_RESOURCE")
+        AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_MODEL")
+        AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
+        AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY")
+        AZURE_OPENAI_TEMPERATURE = os.environ.get("AZURE_OPENAI_TEMPERATURE", 0.7)
+        AZURE_OPENAI_TOP_P = os.environ.get("AZURE_OPENAI_TOP_P", 0.95)
+        AZURE_OPENAI_MAX_TOKENS = os.environ.get("AZURE_OPENAI_MAX_TOKENS", 4096)
+        AZURE_OPENAI_STOP_SEQUENCE = os.environ.get("AZURE_OPENAI_STOP_SEQUENCE")
+        AZURE_OPENAI_SYSTEM_MESSAGE = os.environ.get("AZURE_OPENAI_SYSTEM_MESSAGE", "You are an AI assistant that helps people find information.")
+        AZURE_OPENAI_PREVIEW_API_VERSION = os.environ.get("AZURE_OPENAI_PREVIEW_API_VERSION", "2023-12-01-preview")
+        AZURE_OPENAI_STREAM = os.environ.get("AZURE_OPENAI_STREAM", "true")
+        AZURE_OPENAI_MODEL_NAME = os.environ.get("AZURE_OPENAI_MODEL_NAME", "gpt-35-turbo-16k") # Name of the model, e.g. 'gpt-35-turbo-16k' or 'gpt-4'
+        AZURE_OPENAI_EMBEDDING_ENDPOINT = os.environ.get("AZURE_OPENAI_EMBEDDING_ENDPOINT")
+        AZURE_OPENAI_EMBEDDING_KEY = os.environ.get("AZURE_OPENAI_EMBEDDING_KEY")
+        pass
+#2024/02/26 add_end
+
+#2024/02/26 add_start トークン算出
+def num_tokens_from_messages(messages, model="gpt-35-turbo-0301"):
+    """Returns the number of tokens used by a list of messages."""
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        #print("Warning: model not found. Using cl100k_base encoding.")
+        encoding = tiktoken.get_encoding("cl100k_base")
+    if model == "gpt-35-turbo":
+        #print("Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming gpt-3.5-turbo-0301.")
+        return num_tokens_from_messages(messages, model="gpt-35-turbo-0301")
+    elif model == "gpt-4":
+        #print("Warning: gpt-4 may change over time. Returning num tokens assuming gpt-4-0314.")
+        return num_tokens_from_messages(messages, model="gpt-4-0314")
+    elif model == "gpt-35-turbo-0301":
+        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
+        tokens_per_name = -1  # if there's a name, the role is omitted
+    elif model == "gpt-4-0314":
+        tokens_per_message = 3
+        tokens_per_name = 1
+    else:
+        raise NotImplementedError(f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
+    num_tokens = 0
+    for message in messages:
+        num_tokens += tokens_per_message
+        for key, value in message.items():
+            num_tokens += len(encoding.encode(value))
+            if key == "name":
+                num_tokens += tokens_per_name
+    num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+    return num_tokens
+#2024/02/26 add_end トークン算出
+
+#2024/02/26 add_start リクエストされた最新メッセージのトークン評価
+def check_token_lastMessage(last_message, gpt_version):
+    request_token = 0
+
+    if gptversion_select(gpt_version):
+        #GPT4
+        request_token = num_tokens_from_messages([{"role": last_message["role"] ,"content": last_message["content"]}],"gpt-4")
+        print("tiktokenで計測した最新リクエストのGPT4のトークン数:", request_token)
+        if request_token > int(AZURE_OPENAI_LIMIT2):
+            print("リクエストトークンの最大値制限")
+            check_result = {
+                "result": True,
+                "message": "リクエストいただいた文字は" + str(request_token)+"トークンです。\n一度にリクエストできるトークン数は"+AZURE_OPENAI_LIMIT2+"トークン（約60,000文字）までです。\n"+AZURE_OPENAI_LIMIT2+"トークン以内に納まるように質問してください。"
+            }
+        else:
+            check_result = {
+                "result": False,
+                "message": ""
+            }
+    else:
+        #GPT3.5
+        request_token = num_tokens_from_messages([{"role": last_message["role"] ,"content": last_message["content"]}],"gpt-35-turbo")
+        print("tiktokenで計測した最新リクエストのGPT3.5のトークン数:", request_token)
+        if request_token > int(AZURE_OPENAI_LIMIT):
+            print("リクエストトークンの最大値制限")
+            check_result = {
+                "result": True,
+                "message": "リクエストいただいた文字は" + str(request_token)+"トークンです。\n一度にリクエストできるトークン数は"+AZURE_OPENAI_LIMIT+"トークン（約7,500文字）までです。\n"+AZURE_OPENAI_LIMIT+"トークン以内に納まるように質問してください。"
+            }
+        else:
+            check_result = {
+                "result": False,
+                "message": ""
+            }
+    return check_result
+#2024/02/26 add_end
+
+#2024/02/26 add_start リクエスト全体のトークン評価
+def check_totaltoken(messages, gpt_version):
+    total_token = 0
+    gpt_version_select = gptversion_select(gpt_version)
+    #トータルトークンのカウント
+    for message in messages:
+        if gpt_version_select:
+            #gpt4
+            total_token += num_tokens_from_messages([{"role": message["role"] ,"content": message["content"]}],"gpt-4")
+        else:
+            #gpt3.5
+            total_token += num_tokens_from_messages([{"role": message["role"] ,"content": message["content"]}],"gpt-35-turbo")
+    print("tiktokenで計測したリクエスト全体のトークン数:", total_token)
+    if gpt_version_select:
+        if total_token + int(AZURE_OPENAI_MAX_TOKENS) > int(AZURE_OPENAI_TOTALLIMIT2):
+            check_result = {
+                "result": True,
+                "message": "ChatGPTとの会話文字数（トークン数）が上限の"+AZURE_OPENAI_TOTALLIMIT2+"トークンをオーバーしたため会話を続けることができません。\n”新規会話”もしくは”履歴のクリア”を押して、最初から質問してください。"
+            }
+        else:
+            check_result = {
+                "result": False,
+                "message": ""
+            }
+    else:
+        if total_token + int(AZURE_OPENAI_MAX_TOKENS)  > int(AZURE_OPENAI_TOTALLIMIT):
+            check_result = {
+                "result": True,
+                "message": "ChatGPTとの会話文字数（トークン数）が上限の"+AZURE_OPENAI_TOTALLIMIT+"トークンをオーバーしたため会話を続けることができません。\n”新規会話”もしくは”履歴のクリア”を押して、最初から質問してください。"
+            }
+        else:
+            check_result = {
+                "result": False,
+                "message": ""
+            }
+    return check_result
+#2024/02/26 add_end
+
 def prepare_model_args(request_body):
     request_messages = request_body.get("messages", [])
     messages = []
@@ -537,6 +754,19 @@ def prepare_model_args(request_body):
     return model_args
 
 async def send_chat_request(request):
+    #2024/02/26 add_start トークンチェック
+    request_messages = request.get("messages", [])
+    check_token_result = check_token_lastMessage(request_messages[-1],request['gpt_version'])
+    check_totaltoken_result = check_totaltoken(request_messages, request['gpt_version'])
+
+    if check_token_result.get("result"):
+        #最新メッセージトークンエラー
+        raise CustomException(check_token_result.get("message"), 200)
+    if check_totaltoken_result.get("result"):
+        #トータルトークン制限エラー
+        raise CustomException(check_totaltoken_result.get("message"), 200)
+    #2024/02/26 add_end
+
     model_args = prepare_model_args(request)
 
     try:
@@ -584,6 +814,18 @@ async def conversation_internal(request_body):
         else:
             return jsonify({"error": str(ex)}), 500
 
+#20240226 add_start バージョン選択有効版
+@bp.route("/conversationversion", methods=["POST"])
+async def conversation_version():
+    print("UI_SHOW_CHATVERSION",UI_SHOW_CHATVERSION_BUTTON)
+    print("UI_SHOW_SHARE",UI_SHOW_SHARE_BUTTON)
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    request_json = await request.get_json()
+    init_gptversion(request_json['gpt_version'])
+    return await conversation_internal(request_json)
+#20240226 add_end
+
 
 @bp.route("/conversation", methods=["POST"])
 async def conversation():
@@ -595,11 +837,70 @@ async def conversation():
 
 @bp.route("/frontend_settings", methods=["GET"])  
 def get_frontend_settings():
+    #print(frontend_settings)
     try:
         return jsonify(frontend_settings), 200
     except Exception as e:
         logging.exception("Exception in /frontend_settings")
-        return jsonify({"error": str(e)}), 500  
+        return jsonify({"error": str(e)}), 500
+
+#20240226 add_start バージョン選択有効版 Conversation History API
+@bp.route("/history/generateversion", methods=["POST"])
+async def add_conversation_version():
+    print("UI_SHOW_CHATVERSION",UI_SHOW_CHATVERSION_BUTTON)
+    print("UI_SHOW_SHARE",UI_SHOW_SHARE_BUTTON)
+
+    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
+    user_id = authenticated_user['user_principal_id']
+
+    ## check request for conversation_id
+    request_json = await request.get_json()
+    conversation_id = request_json.get('conversation_id', None)
+
+    try:
+        # make sure cosmos is configured
+        cosmos_conversation_client = init_cosmosdb_client()
+        if not cosmos_conversation_client:
+            raise Exception("CosmosDB is not configured or not working")
+
+        # check for the conversation_id, if the conversation is not set, we will create a new one
+        history_metadata = {}
+        if not conversation_id:
+            title = await generate_title(request_json["messages"])
+            conversation_dict = await cosmos_conversation_client.create_conversation(user_id=user_id, title=title)
+            conversation_id = conversation_dict['id']
+            history_metadata['title'] = title
+            history_metadata['date'] = conversation_dict['createdAt']
+            
+        ## Format the incoming message object in the "chat/completions" messages format
+        ## then write it to the conversation history in cosmos
+        messages = request_json["messages"]
+        if len(messages) > 0 and messages[-1]['role'] == "user":
+            createdMessageValue = await cosmos_conversation_client.create_message(
+                uuid=str(uuid.uuid4()),
+                conversation_id=conversation_id,
+                user_id=user_id,
+                input_message=messages[-1]
+            )
+            if createdMessageValue == "Conversation not found":
+                raise Exception("Conversation not found for the given conversation ID: " + conversation_id + ".")
+        else:
+            raise Exception("No user message found")
+        
+        await cosmos_conversation_client.cosmosdb_client.close()
+        
+        # Submit request to Chat Completions for response
+        request_body = await request.get_json()
+        init_gptversion(request_body['gpt_version'])
+        print("AZURE_OPENAI_MODEL:",AZURE_OPENAI_MODEL)
+        history_metadata['conversation_id'] = conversation_id
+        request_body['history_metadata'] = history_metadata
+        return await conversation_internal(request_body)
+       
+    except Exception as e:
+        logging.exception("Exception in /history/generate")
+        return jsonify({"error": str(e)}), 500
+#20240226 add_end
 
 ## Conversation History API ## 
 @bp.route("/history/generate", methods=["POST"])
@@ -962,3 +1263,8 @@ async def generate_title(conversation_messages):
 
 
 app = create_app()
+
+class CustomException(Exception):
+    def __init__(self, message, status_code):
+        super().__init__(message)
+        self.status_code = status_code
