@@ -65,6 +65,10 @@ export const appStateReducer = (state: AppState, action: Action): AppState => {
             return { ...state, chatHistory: action.payload };
         case 'SET_COSMOSDB_STATUS':
             return { ...state, isCosmosDBAvailable: action.payload };
+        //20240226 add_start バージョン選択状態保存
+        case 'TOGGLE_CHAT_VERSION':
+            return { ...state, isChatGPTVersion: !state.isChatGPTVersion };
+        //20240226 add_end
         case 'FETCH_FRONTEND_SETTINGS':
             return { ...state, frontendSettings: action.payload };    
         case 'SET_FEEDBACK_STATE':

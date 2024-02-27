@@ -37,6 +37,23 @@
     margin-left: 36px;
 }
 
+/*20240226 add_start*/
+.push {
+    margin-left: auto;
+}
+
+.guidelines {
+    font-style: normal;
+    font-weight: 500;
+    font-size: 15px;
+    line-height: 20px;
+    display: flex;
+    align-items: flex-end;
+    color: #0000ff80;
+    text-decoration: underline;
+}
+/*20240226 add_end*/
+
 .shareButtonContainer {
     display: flex;
     flex-direction: row;

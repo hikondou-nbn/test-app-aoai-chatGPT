@@ -96,6 +96,18 @@ export enum ChatHistoryLoadingState {
     NotStarted = "notStarted"
 }
 
+//20240226 add_start Chat Version Select Status
+export enum ChatVersionSelectStatus {
+    selected = "ChatGPT_Version_selected",
+    NotSelected = "ChatGPT_Version_not_selected"
+}
+
+export type ChatVersionSelectHealth = {
+    versionSelect: boolean,
+    status: string
+}
+//20240226 add_end Chat Bersion Select Status
+
 export type ErrorMessage = {
     title: string,
     subtitle: string
@@ -105,6 +117,8 @@ export type UI = {
     title: string;
     chat_title: string;
     chat_description: string;
+    //20240226 add バージョン選択ボタンの表示有無 変数を追加
+    show_chatVersion_Button: boolean;
     logo?: string;
     chat_logo?: string;
     show_share_button?: boolean

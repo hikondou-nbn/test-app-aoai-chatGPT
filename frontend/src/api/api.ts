@@ -1,6 +1,24 @@
 import { UserInfo, ConversationRequest, Conversation, ChatMessage, CosmosDBHealth, CosmosDBStatus } from "./models";
 import { chatHistorySampleData } from "../constants/chatHistory";
 
+//20240226 add_start GPTバージョン選択用APIリクエスト
+export async function conversationApi_version(options: ConversationRequest, abortSignal: AbortSignal, gptversion: boolean): Promise<Response> {
+    const response = await fetch("/conversationversion", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            gpt_version: gptversion,
+            messages: options.messages
+        }),
+        signal: abortSignal
+    });
+
+    return response;
+}
+//20240226 add_end GPTバージョン選択用APIリクエスト
+
 export async function conversationApi(options: ConversationRequest, abortSignal: AbortSignal): Promise<Response> {
     const response = await fetch("/conversation", {
         method: "POST",
@@ -135,6 +153,39 @@ export const historyGenerate = async (options: ConversationRequest, abortSignal:
     })
     return response
 }
+
+//20240226 add_start 会話履歴が有効な時のOpenAIリクエスト（ChatGPTバージョン選択用）
+export const historyGenerate_version = async (options: ConversationRequest, abortSignal: AbortSignal, gptversion: boolean, convId?: string): Promise<Response> => {
+    let body;
+    if(convId){
+        body = JSON.stringify({
+            conversation_id: convId,
+            gpt_version: gptversion,
+            messages: options.messages
+        })
+    }else{
+        body = JSON.stringify({
+            gpt_version: gptversion,
+            messages: options.messages
+        })
+    }
+    const response = await fetch("/history/generateversion", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: body,
+        signal: abortSignal
+    }).then((res) => {
+        return res
+    })
+    .catch((err) => {
+        console.error("There was an issue fetching your data.");
+        return new Response;
+    })
+    return response
+}
+//20240226 add_end 会話履歴が有効な時のOpenAIリクエスト（ChatGPTバージョン選択用）
 
 export const historyUpdate = async (messages: ChatMessage[], convId: string): Promise<Response> => {
     const response = await fetch("/history/update", {

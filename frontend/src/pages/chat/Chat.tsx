@@ -17,12 +17,14 @@ import {
     ChatMessage,
     ConversationRequest,
     conversationApi,
+    conversationApi_version,
     Citation,
     ToolMessageContent,
     ChatResponse,
     getUserInfo,
     Conversation,
     historyGenerate,
+    historyGenerate_version,
     historyUpdate,
     historyClear,
     ChatHistoryLoadingState,
@@ -152,6 +154,16 @@ const Chat = () => {
         const abortController = new AbortController();
         abortFuncs.current.unshift(abortController);
 
+        //20240226 add_start バージョン選択状態の取得 true->gpt4 false->gpt3.5
+        let gptversion = false;
+        //バージョン選択状態が未定義の場合、false(gpt3.5)とする
+        if (typeof appStateContext?.state?.isChatGPTVersion === 'undefined') {
+            gptversion = false;
+        }else{
+            gptversion = appStateContext?.state?.isChatGPTVersion;
+        }
+        //20240226 add_end バージョン選択状態の取得 true->gpt4 false->gpt3.5
+
         const userMessage: ChatMessage = {
             id: uuid(),
             role: "user",
@@ -189,7 +201,9 @@ const Chat = () => {
 
         let result = {} as ChatResponse;
         try {
-            const response = await conversationApi(request, abortController.signal);
+            //const response = await conversationApi(request, abortController.signal);
+            //20240226 add conversationApiではなくconversationApi_versionを呼び出し
+            const response = await conversationApi_version(request, abortController.signal, gptversion);
             if (response?.body) {
                 const reader = response.body.getReader();
 
@@ -276,6 +290,16 @@ const Chat = () => {
         const abortController = new AbortController();
         abortFuncs.current.unshift(abortController);
 
+        //20240226 add_start バージョン選択状態の取得 true->gpt4 false->gpt3.5
+        let gptversion = false;
+        //バージョン選択状態が未定義の場合、false(gpt3.5)とする
+        if (typeof appStateContext?.state?.isChatGPTVersion === 'undefined') {
+            gptversion = false;
+        }else{
+            gptversion = appStateContext?.state?.isChatGPTVersion;
+        }
+        //20240226 add_end バージョン選択状態の取得 true->gpt4 false->gpt3.5
+
         const userMessage: ChatMessage = {
             id: uuid(),
             role: "user",
@@ -308,7 +332,9 @@ const Chat = () => {
         }
         let result = {} as ChatResponse;
         try {
-            const response = conversationId ? await historyGenerate(request, abortController.signal, conversationId) : await historyGenerate(request, abortController.signal);
+            //const response = conversationId ? await historyGenerate(request, abortController.signal, conversationId) : await historyGenerate(request, abortController.signal);
+            //20240226 change histrotyGenerateではなくhistoryGenerate_versionを呼び出し
+            const response = conversationId ? await historyGenerate_version(request, abortController.signal, gptversion, conversationId) : await historyGenerate_version(request, abortController.signal, gptversion);
             if (!response?.ok) {
                 const responseJson = await response.json();
                 var errorResponseMessage = responseJson.error === undefined ? "Please try again. If the problem persists, please contact the site administrator." : responseJson.error;

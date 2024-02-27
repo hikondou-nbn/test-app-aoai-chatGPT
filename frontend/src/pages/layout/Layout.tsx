@@ -4,9 +4,9 @@ import Contoso from "../../assets/Contoso.svg";
 import { CopyRegular } from "@fluentui/react-icons";
 import { Dialog, Stack, TextField } from "@fluentui/react";
 import { useContext, useEffect, useState } from "react";
-import { HistoryButton, ShareButton } from "../../components/common/Button";
+import { HistoryButton, ShareButton, ChatVersionButton } from "../../components/common/Button";
 import { AppStateContext } from "../../state/AppProvider";
-import { CosmosDBStatus } from "../../api";
+import { CosmosDBStatus, ChatVersionSelectStatus } from "../../api";
 
 const Layout = () => {
     const [isSharePanelOpen, setIsSharePanelOpen] = useState<boolean>(false);
@@ -36,6 +36,12 @@ const Layout = () => {
     const handleHistoryClick = () => {
         appStateContext?.dispatch({ type: 'TOGGLE_CHAT_HISTORY' })
     };
+
+    //20240226 add_start バージョン選択ボタンクリックの処理
+    const handleChatVersionClick = () => {
+        appStateContext?.dispatch({ type: 'TOGGLE_CHAT_VERSION'})
+    }
+    //20240226 add_end バージョン選択ボタンクリックの処理
 
     useEffect(() => {
         if (copyClicked) {
@@ -78,14 +84,22 @@ const Layout = () => {
                             <h1 className={styles.headerTitle}>{ui?.title}</h1>
                         </Link>
                     </Stack>
-                    {ui?.show_share_button &&
-                        <Stack horizontal tokens={{ childrenGap: 4 }}>
-                            {(appStateContext?.state.isCosmosDBAvailable?.status !== CosmosDBStatus.NotConfigured) &&
-                                <HistoryButton onClick={handleHistoryClick} text={appStateContext?.state?.isChatHistoryOpen ? hideHistoryLabel : showHistoryLabel} />
-                            }
+                    <Stack horizontal className={styles.push}>
+                        <a href="https://nbn061.sharepoint.com/hi/System/DocLib1/%E3%82%A6%E3%83%AB%E3%83%95%E3%82%A3%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%E5%88%A9%E7%94%A8%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3.pdf" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                            ガイドライン
+                        </a>
+                    </Stack>
+                    <Stack horizontal tokens={{ childrenGap: 4 }}>
+                        {ui?.show_chatVersion_Button &&
+                            <ChatVersionButton onClick={handleChatVersionClick} text={appStateContext?.state?.isChatGPTVersion ? "GPT4" : "GPT3-5"}/> 
+                        }
+                        {(appStateContext?.state.isCosmosDBAvailable?.status !== CosmosDBStatus.NotConfigured) &&
+                            <HistoryButton onClick={handleHistoryClick} text={appStateContext?.state?.isChatHistoryOpen ? hideHistoryLabel : showHistoryLabel} />
+                        }
+                        {ui?.show_share_button &&
                             <ShareButton onClick={handleShareClick} text={shareLabel} />
-                        </Stack>
-                    }
+                        }
+                    </Stack>
                 </Stack>
             </header>
             <Outlet />
