@@ -85,7 +85,19 @@ const Layout = () => {
                         </Link>
                     </Stack>
                     <Stack horizontal className={styles.push}>
-                        <a href="https://nbn061.sharepoint.com/hi/System/DocLib1/%E3%82%A6%E3%83%AB%E3%83%95%E3%82%A3%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%E5%88%A9%E7%94%A8%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3.pdf" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                        <a href="https://nbn061.sharepoint.com/sites/wolfychat" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                            活用サイト
+                        </a>
+                        <a href="https://nbn061.sharepoint.com/sites/wolfychat/Lists/prompts/TOP.aspx" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                            プロンプト集
+                        </a>
+                        <a href="https://forms.office.com/Pages/ResponsePage.aspx?id=vJHkAvf9u0ixOSAD1uBwKBGK8iF8qjpHjKSt89NfhrtUNlBMWlRJS1YxMU9XNVRSRDlROUpBUk0xUC4u" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                            プロンプト投稿
+                        </a>
+                        <a href="https://nbn061.sharepoint.com/:b:/s/wolfychat/EZXoAngEiQ5IpdgT1ee7Em0BRFkuXWLtkG2NQorZPSN-2w?e=W8yGwL" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
+                            マニュアル
+                        </a>
+                        <a href="https://nbn061.sharepoint.com/:b:/s/wolfychat/EaF-XawFnFJIiMI7bOEPxeUBNdTWgd_jphKWg3ldH1VVaQ?e=Tdpbmk" target="_blank" rel="noopener nofeferrer" className={styles.guidelines}>
                             ガイドライン
                         </a>
                     </Stack>
